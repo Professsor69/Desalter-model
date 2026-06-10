@@ -8,9 +8,9 @@ RUN pip install --no-cache-dir \
     uvicorn \
     pydantic \
     pandas \
-    scikit-learn \
+    scikit-learn==1.6.1 \
     xgboost \
-    joblib
+    joblib==1.4.2
 
 # Copy backend app and serialized model pipeline
 COPY api.py .

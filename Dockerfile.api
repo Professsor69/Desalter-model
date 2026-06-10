@@ -13,6 +13,7 @@ RUN pip install --no-cache-dir -r requirements_api.txt
 # Copy the required project modules
 COPY phase2_optimizer/ ./phase2_optimizer/
 COPY phase3_ui_api/ ./phase3_ui_api/
+COPY timeseries_engine/ ./timeseries_engine/
 
 # Expose FastAPI port
 EXPOSE 8000
