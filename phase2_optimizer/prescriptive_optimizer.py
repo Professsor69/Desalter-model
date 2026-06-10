@@ -20,9 +20,9 @@ def load_digital_twin():
         model = pickle.load(f)
     return model
 
-def optimize_setpoints(model, api_gravity, inlet_bsw):
+def optimize_setpoints(model, api_gravity, inlet_bsw, inlet_salt_ptb):
     """
-    Finds the optimal Temperature_C and Wash_Water_Percent for the given API_Gravity and Inlet_BSW.
+    Finds the optimal Temperature_C and Wash_Water_Percent for the given crude conditions.
     Uses a hybrid approach:
     1. Grid search over the operating space to find a good global starting point and avoid local minima.
     2. SciPy minimize (Powell method) initialized at the grid winner for fine local optimization.
@@ -37,10 +37,11 @@ def optimize_setpoints(model, api_gravity, inlet_bsw):
     temp_flat = temp_grid.flatten()
     ww_flat = ww_grid.flatten()
     
-    # Create evaluation DataFrame for batch inference (XGBoost handles this instantly)
+    # Create evaluation DataFrame for batch inference
     eval_df = pd.DataFrame({
         'API_Gravity': [api_gravity] * len(temp_flat),
         'Inlet_BSW': [inlet_bsw] * len(temp_flat),
+        'Inlet_Salt_PTB': [inlet_salt_ptb] * len(temp_flat),
         'Temperature_C': temp_flat,
         'Wash_Water_Percent': ww_flat
     })
@@ -63,6 +64,7 @@ def optimize_setpoints(model, api_gravity, inlet_bsw):
         df_single = pd.DataFrame([{
             'API_Gravity': api_gravity,
             'Inlet_BSW': inlet_bsw,
+            'Inlet_Salt_PTB': inlet_salt_ptb,
             'Temperature_C': temp_val,
             'Wash_Water_Percent': ww_val
         }])
@@ -96,7 +98,8 @@ def optimize_setpoints(model, api_gravity, inlet_bsw):
         "status": "success",
         "crude_conditions": {
             "API_Gravity": float(api_gravity),
-            "Inlet_BSW": float(inlet_bsw)
+            "Inlet_BSW": float(inlet_bsw),
+            "Inlet_Salt_PTB": float(inlet_salt_ptb)
         },
         "optimal_setpoints": {
             "Temperature_C": round(float(opt_temp), 2),
@@ -115,6 +118,7 @@ def main():
     parser = argparse.ArgumentParser(description="Desalter Prescriptive Optimizer")
     parser.add_argument("--api", type=float, default=25.0, help="API Gravity of incoming crude batch (20.0 to 45.0)")
     parser.add_argument("--bsw", type=float, default=1.8, help="Inlet BSW % of incoming crude batch (0.1 to 2.5)")
+    parser.add_argument("--salt", type=float, default=30.0, help="Inlet Salt PTB of incoming crude batch (10.0 to 60.0)")
     args = parser.parse_args()
     
     # Input validation
@@ -122,11 +126,13 @@ def main():
         print(f"Warning: API Gravity {args.api} is outside the normal bounds [20.0, 45.0]")
     if not (0.1 <= args.bsw <= 2.5):
         print(f"Warning: Inlet BSW {args.bsw} is outside the normal bounds [0.1, 2.5]")
+    if not (10.0 <= args.salt <= 60.0):
+        print(f"Warning: Inlet Salt {args.salt} is outside the normal bounds [10.0, 60.0]")
         
     # Load model and run optimization
     try:
         model = load_digital_twin()
-        result = optimize_setpoints(model, args.api, args.bsw)
+        result = optimize_setpoints(model, args.api, args.bsw, args.salt)
         # Output JSON payload
         print(json.dumps(result, indent=2))
     except Exception as e:
