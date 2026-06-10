@@ -214,7 +214,40 @@ with tab2:
             )
 
         idx = st.session_state.sim_index
-        window = df_sim.iloc[idx - 59:idx + 1]
+        window = df_sim.iloc[idx - 59:idx + 1].copy()
+
+        # Operator Intervention Sliders
+        st.markdown("---")
+        st.markdown("#### 🛠️ Operator Manual Intervention (What-If Analysis)")
+        st.markdown("Use these controls to simulate adjusting desalter settings during an alert and see if your intervention clears the trip warning.")
+        override_active = st.checkbox("Enable Operator Manual Overrides", value=False)
+        
+        current_reading = df_sim.iloc[idx]
+        
+        if override_active:
+            col_o1, col_o2 = st.columns(2)
+            with col_o1:
+                ov_temp = st.slider(
+                    "Manual Inlet Temperature Override (°C)", 
+                    min_value=100.0, 
+                    max_value=160.0, 
+                    value=float(current_reading['Inlet_Temperature']),
+                    step=0.5
+                )
+            with col_o2:
+                ov_water = st.slider(
+                    "Manual Wash Water Rate Override (%)", 
+                    min_value=0.0, 
+                    max_value=12.0, 
+                    value=float(current_reading['Wash_Water_Rate']),
+                    step=0.1
+                )
+            # Apply overrides to the current reading (the latest row in our 60-minute buffer)
+            window.iloc[-1, window.columns.get_loc('Inlet_Temperature')] = ov_temp
+            window.iloc[-1, window.columns.get_loc('Wash_Water_Rate')] = ov_water
+        else:
+            ov_temp = float(current_reading['Inlet_Temperature'])
+            ov_water = float(current_reading['Wash_Water_Rate'])
 
         # Prepare streaming payload
         readings = []
@@ -244,7 +277,6 @@ with tab2:
             st.error(f"❌ Error communicating with backend: {e}")
 
         # Render Alert Banner
-        current_reading = df_sim.iloc[idx]
         grid_volts = float(current_reading['Grid_Voltage'])
 
         if connection_ok:
@@ -294,18 +326,19 @@ with tab2:
         )
         m_col2.metric(
             label="Inlet Temperature",
-            value=f"{current_reading['Inlet_Temperature']:.1f} °C"
+            value=f"{current_reading['Inlet_Temperature']:.1f} °C" if not override_active else f"{ov_temp:.1f} °C (Manual)",
+            delta=f"{ov_temp - current_reading['Inlet_Temperature']:.1f} °C" if override_active else None
         )
         m_col3.metric(
             label="Wash Water Rate",
-            value=f"{current_reading['Wash_Water_Rate']:.2f} %"
+            value=f"{current_reading['Wash_Water_Rate']:.2f} %" if not override_active else f"{ov_water:.2f} % (Manual)",
+            delta=f"{ov_water - current_reading['Wash_Water_Rate']:.2f} %" if override_active else None
         )
         m_col4.metric(
             label="Inlet Salt",
             value=f"{current_reading['Inlet_Salt_PTB']:.1f} PTB"
         )
         
-        grid_volts = current_reading['Grid_Voltage']
         if grid_volts == 0.0:
             m_col5.metric(
                 label="Grid Voltage",
