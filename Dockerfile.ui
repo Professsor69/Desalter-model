@@ -10,8 +10,9 @@ WORKDIR /app
 COPY phase3_ui_api/requirements_ui.txt .
 RUN pip install --no-cache-dir -r requirements_ui.txt
 
-# Copy Streamlit frontend module
+# Copy Streamlit frontend module and timeseries data
 COPY phase3_ui_api/ ./phase3_ui_api/
+COPY timeseries_engine/ ./timeseries_engine/
 
 # Expose Streamlit port
 EXPOSE 8501
