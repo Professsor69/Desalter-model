@@ -5,6 +5,12 @@ import pandas as pd
 
 app = FastAPI(title="Desalter Risk API")
 
+# Define the custom function so joblib can unpickle the pipeline
+def add_emulsion_risk(X):
+    X_new = X.copy()
+    X_new['Emulsion_Risk_Factor'] = (X_new['Inlet_BSW'] * X_new['Inlet_Salt_PTB']) / X_new['API_Gravity']
+    return X_new
+
 # 4. Load the Model globally
 print("Loading model pipeline...")
 try:
