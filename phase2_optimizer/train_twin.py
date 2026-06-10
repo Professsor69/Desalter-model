@@ -23,7 +23,7 @@ def main():
     print(f"Loaded {len(df)} rows.")
     
     # Define features and target
-    feature_cols = ['API_Gravity', 'Inlet_BSW', 'Temperature_C', 'Wash_Water_Percent']
+    feature_cols = ['API_Gravity', 'Inlet_BSW', 'Inlet_Salt_PTB', 'Temperature_C', 'Wash_Water_Percent']
     target_col = 'Emulsion_Thickness_mm'
     
     X = df[feature_cols]
