@@ -217,9 +217,8 @@ with tab2:
         window = df_sim.iloc[idx - 59:idx + 1].copy()
         current_reading = df_sim.iloc[idx]
 
-        # Initialize overrides in session state when simulation index changes
-        if 'prev_sim_index' not in st.session_state or st.session_state.prev_sim_index != idx:
-            st.session_state.prev_sim_index = idx
+        # Initialize session state variables if they do not exist
+        if 'ov_temp' not in st.session_state:
             st.session_state.ov_temp = float(current_reading['Inlet_Temperature'])
             st.session_state.ov_water = float(current_reading['Wash_Water_Rate'])
 
@@ -228,6 +227,12 @@ with tab2:
         st.markdown("#### 🛠️ Operator Manual Intervention (What-If Analysis)")
         st.markdown("Use these controls to simulate adjusting desalter settings during an alert and see if your intervention clears the trip warning.")
         override_active = st.checkbox("Enable Operator Manual Overrides", value=False)
+        
+        # If overrides are NOT active, continuously sync with original SCADA readings
+        if not override_active:
+            st.session_state.ov_temp = float(current_reading['Inlet_Temperature'])
+            st.session_state.ov_water = float(current_reading['Wash_Water_Rate'])
+            st.session_state.prev_sim_index = idx
         
         if override_active:
             col_o1, col_o2 = st.columns(2)
