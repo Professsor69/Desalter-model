@@ -244,8 +244,25 @@ with tab2:
             st.error(f"❌ Error communicating with backend: {e}")
 
         # Render Alert Banner
+        current_reading = df_sim.iloc[idx]
+        grid_volts = float(current_reading['Grid_Voltage'])
+
         if connection_ok:
-            if warning_status == "Imminent Trip":
+            if grid_volts == 0.0:
+                st.markdown(
+                    """
+                    <div style="background-color: #78350f; padding: 22px; border-radius: 8px; border-left: 10px solid #d97706; margin-bottom: 24px;">
+                        <h2 style="color: white; margin: 0; font-size: 2.1rem; text-align: center; font-weight: 800;">
+                            ⚠️ SYSTEM TRIPPED — DESALTER OFFLINE
+                        </h2>
+                        <p style="color: #fde68a; margin: 6px 0 0 0; text-align: center; font-size: 1.15rem; font-weight: 600;">
+                            Grid Voltage at 0.0 kV. Emergency shutdown in progress.
+                        </p>
+                    </div>
+                    """, 
+                    unsafe_allow_html=True
+                )
+            elif warning_status == "Imminent Trip":
                 st.markdown(
                     """
                     <div style="background-color: #dc2626; padding: 22px; border-radius: 8px; border-left: 10px solid #991b1b; margin-bottom: 24px;">
@@ -268,7 +285,6 @@ with tab2:
                 st.success("✅ **SYSTEM OPERATION STABLE** — Grid Voltage nominal. No trip warnings predicted.")
 
         # Render Live Sensor Values
-        current_reading = df_sim.iloc[idx]
         st.markdown("#### Real-time SCADA Sensor Readings")
         m_col1, m_col2, m_col3, m_col4, m_col5 = st.columns(5)
         
