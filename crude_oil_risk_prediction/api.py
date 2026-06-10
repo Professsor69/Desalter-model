@@ -11,6 +11,10 @@ def add_emulsion_risk(X):
     X_new['Emulsion_Risk_Factor'] = (X_new['Inlet_BSW'] * X_new['Inlet_Salt_PTB']) / X_new['API_Gravity']
     return X_new
 
+# Dynamically inject it into the __main__ module namespace so joblib can find it
+import sys
+sys.modules['__main__'].add_emulsion_risk = add_emulsion_risk
+
 # 4. Load the Model globally
 print("Loading model pipeline...")
 try:
