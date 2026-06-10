@@ -1,0 +1,21 @@
+FROM python:3.11-slim
+
+# Set environment variables for Python
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1
+
+WORKDIR /app
+
+# Install dependencies
+COPY phase3_ui_api/requirements_api.txt .
+RUN pip install --no-cache-dir -r requirements_api.txt
+
+# Copy the required project modules
+COPY phase2_optimizer/ ./phase2_optimizer/
+COPY phase3_ui_api/ ./phase3_ui_api/
+
+# Expose FastAPI port
+EXPOSE 8000
+
+# Run FastAPI backend
+CMD ["uvicorn", "phase3_ui_api.api:app", "--host", "0.0.0.0", "--port", "8000"]
