@@ -1,5 +1,9 @@
 import streamlit as st
 import requests
+import os
+
+# 1. Configuration & Networking
+API_URL = os.getenv("API_URL", "http://localhost:8000/predict")
 
 # 3. Build the UI Layout
 st.set_page_config(page_title="IOCL Panipat: Desalter Crude Risk Profiling", layout="wide")
@@ -26,7 +30,7 @@ if st.sidebar.button("Run Risk Analysis", type="primary", use_container_width=Tr
     
     with st.spinner("Connecting to FastAPI backend..."):
         try:
-            response = requests.post("http://localhost:8000/predict", json=payload)
+            response = requests.post(API_URL, json=payload)
             response.raise_for_status()
             
             result = response.json()
@@ -46,6 +50,6 @@ if st.sidebar.button("Run Risk Analysis", type="primary", use_container_width=Tr
                 st.info(f"**Predicted Risk:** {risk_class}")
                 
         except requests.exceptions.ConnectionError:
-            st.error("❌ **Connection Error:** Could not reach the FastAPI backend. Make sure it is running on http://localhost:8000.")
+            st.error(f"❌ **Connection Error:** Could not reach the FastAPI backend at {API_URL}. Make sure it is running.")
         except Exception as e:
             st.error(f"❌ **An error occurred:** {e}")
