@@ -72,6 +72,15 @@ inlet_bsw = st.sidebar.slider(
     help="Basic Sediment and Water percentage in the incoming crude."
 )
 
+inlet_salt_ptb = st.sidebar.slider(
+    "Inlet Salt (PTB)",
+    min_value=10.0,
+    max_value=60.0,
+    value=30.0,
+    step=0.1,
+    help="Inlet salt content in Pounds per Thousand Barrels (PTB)."
+)
+
 st.sidebar.markdown("---")
 st.sidebar.info(f"📡 **Backend API Endpoint:**\n`{API_URL}`")
 
@@ -83,8 +92,8 @@ with col1:
     
     # Render table summarizing current inputs
     input_data = pd.DataFrame({
-        "Variable": ["API Gravity", "Inlet BSW"],
-        "Value": [f"{api_gravity:.1f} °API", f"{inlet_bsw:.2f} %"]
+        "Variable": ["API Gravity", "Inlet BSW", "Inlet Salt"],
+        "Value": [f"{api_gravity:.1f} °API", f"{inlet_bsw:.2f} %", f"{inlet_salt_ptb:.1f} PTB"]
     })
     st.table(input_data)
     
@@ -105,7 +114,8 @@ with col2:
             try:
                 payload = {
                     "API_Gravity": api_gravity,
-                    "Inlet_BSW": inlet_bsw
+                    "Inlet_BSW": inlet_bsw,
+                    "Inlet_Salt_PTB": inlet_salt_ptb
                 }
                 
                 # Make HTTP POST request to FastAPI /optimize endpoint

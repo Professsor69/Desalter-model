@@ -49,12 +49,14 @@ def startup_event():
 class CrudeConditions(BaseModel):
     API_Gravity: float = Field(..., ge=20.0, le=45.0, description="API Gravity of incoming crude batch (20.0 to 45.0)")
     Inlet_BSW: float = Field(..., ge=0.1, le=2.5, description="Inlet BSW % of incoming crude batch (0.1 to 2.5)")
+    Inlet_Salt_PTB: float = Field(..., ge=10.0, le=60.0, description="Inlet Salt PTB of incoming crude batch (10.0 to 60.0)")
 
     class Config:
         json_schema_extra = {
             "example": {
                 "API_Gravity": 25.0,
-                "Inlet_BSW": 1.8
+                "Inlet_BSW": 1.8,
+                "Inlet_Salt_PTB": 30.0
             }
         }
 
@@ -75,7 +77,7 @@ def get_optimized_setpoints(conditions: CrudeConditions):
             raise HTTPException(status_code=500, detail=f"Model not loaded: {str(e)}")
             
     try:
-        result = optimize_setpoints(model, conditions.API_Gravity, conditions.Inlet_BSW)
+        result = optimize_setpoints(model, conditions.API_Gravity, conditions.Inlet_BSW, conditions.Inlet_Salt_PTB)
         return result
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Optimization error: {str(e)}")
