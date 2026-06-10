@@ -40,7 +40,22 @@ The `generate_crude_profile.py` script builds data profiles representing typical
 | `Inlet_Salt_PTB` | Salt content in pounds per thousand barrels (PTB). |
 | `Target_Risk_Class` | The processing difficulty target variable: **Low**, **Medium**, or **High**. |
 
-## 🚀 Installation & Usage
+## 🚀 Repository Structure
+
+All files for the Desalter Crude Oil Risk Classification and serving are housed inside the `crude_oil_risk_prediction/` folder:
+
+- **`crude_oil_risk_prediction/`**:
+  - `regenerate_data.py`: Script to generate the low-noise dataset.
+  - `crude_profile_data.csv`: The generated dataset.
+  - `train_risk_model.py`: Script with Optuna hyperparameter optimization and custom Feature Engineering to train the XGBoost model.
+  - `desalter_risk_model.pkl`: The saved model pipeline.
+  - `api.py`: FastAPI backend to serve model predictions.
+  - `app.py`: Streamlit frontend UI to interact with the model.
+  - `test_api.py`: Verification script for testing the API endpoint.
+
+---
+
+## 💻 Installation & Running the Project
 
 ### 1. Clone the repository
 ```bash
@@ -49,22 +64,33 @@ cd Desalter-model
 ```
 
 ### 2. Install Dependencies
-Ensure you have `pandas` and `numpy` installed:
+Install all required libraries for data handling, modeling, API serving, and the UI:
 ```bash
-pip install pandas numpy
+pip install pandas numpy scikit-learn xgboost optuna joblib fastapi uvicorn pydantic streamlit requests
 ```
 
-### 3. Generate the Dataset
-To regenerate the dataset or run the pipeline in your operations environment, execute:
+### 3. Running the FastAPI Backend
+Navigate to the prediction folder and start the API server using Uvicorn:
 ```bash
-python generate_crude_profile.py
+cd crude_oil_risk_prediction
+python -m uvicorn api:app --host 0.0.0.0 --port 8000
 ```
-This will run the generation logic and save a new batch of records to `crude_profile_data.csv`.
+The FastAPI documentation and interactive "Try it out" feature will be available at `http://localhost:8000/docs`.
+
+### 4. Running the Streamlit Frontend
+In a new terminal window, navigate to the folder and run the Streamlit app:
+```bash
+cd crude_oil_risk_prediction
+python -m streamlit run app.py
+```
+This will launch a web interface at `http://localhost:8501` to analyze incoming crude parameters.
+
+---
 
 ## 🤝 Contributing
 For internal operations teams contributing to the risk logic:
-1. Update heuristics inside the `generate_crude_profile.py` parameters section.
-2. Ensure you maintain the noise strategy to prevent model overfitting.
+1. Update heuristics inside `regenerate_data.py` or `train_risk_model.py`.
+2. Re-run training to produce a new model pipeline.
 3. Submit a Pull Request for review by the MLOps architect.
 
 ---
