@@ -59,6 +59,11 @@ tab1, tab2 = st.tabs(["Static Optimizer", "Live Early Warning Monitor"])
 
 with tab1:
     st.sidebar.markdown("### Incoming Crude Profile (Optimizer)")
+    crude_blend = st.sidebar.selectbox(
+        "Crude Blend", 
+        ['Basrah Heavy', 'Arab Light', 'Ural', 'Bonny Light'],
+        help="Select the raw crude blend type."
+    )
     api_gravity = st.sidebar.slider(
         "API Gravity (°API)", 
         min_value=20.0, 
@@ -97,8 +102,8 @@ with tab1:
         
         # Render table summarizing current inputs
         input_data = pd.DataFrame({
-            "Variable": ["API Gravity", "Inlet BSW", "Inlet Salt"],
-            "Value": [f"{api_gravity:.1f} °API", f"{inlet_bsw:.2f} %", f"{inlet_salt_ptb:.1f} PTB"]
+            "Variable": ["Crude Blend", "API Gravity", "Inlet BSW", "Inlet Salt"],
+            "Value": [crude_blend, f"{api_gravity:.1f} °API", f"{inlet_bsw:.2f} %", f"{inlet_salt_ptb:.1f} PTB"]
         })
         st.table(input_data)
         
@@ -109,12 +114,6 @@ with tab1:
         st.subheader("🎯 Optimization Results")
         
         if run_btn:
-            # Check for heavy/wet crude emulsion risk alert
-            if api_gravity < 28.0 or inlet_bsw > 1.2:
-                st.error("High Emulsion Risk Detected: Heavy/Wet Crude Profile.")
-            else:
-                st.success("✅ Normal Operating Conditions Profile.")
-
             with st.spinner("Sending request to Digital Twin API..."):
                 try:
                     payload = {
@@ -129,6 +128,17 @@ with tab1:
                     result = response.json()
                     
                     if result.get("status") == "success":
+                        # Render Emulsion Risk Prediction Banner
+                        predicted_risk = result.get("predicted_risk", "Unknown")
+                        if predicted_risk == "High":
+                            st.error("🚨 **HIGH RISK**: This crude batch is predicted to be high risk for emulsion.")
+                        elif predicted_risk == "Medium":
+                            st.warning("⚠️ **MEDIUM RISK**: Moderate processing difficulty expected.")
+                        elif predicted_risk == "Low":
+                            st.success("✅ **LOW RISK**: This crude batch is predicted to process easily.")
+                        else:
+                            st.info(f"**Predicted Emulsion Risk Class:** {predicted_risk}")
+
                         optimal = result.get("optimal_setpoints", {})
                         pred_thickness = result.get("predicted_emulsion_thickness_mm", 0.0)
                         metadata = result.get("optimization_metadata", {})

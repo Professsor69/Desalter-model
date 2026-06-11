@@ -38,6 +38,7 @@ app.add_middleware(
 # Global variables
 model = None
 timeseries_model_dict = None
+risk_model_dict = None
 
 @app.on_event("startup")
 def startup_event():
@@ -59,6 +60,19 @@ def startup_event():
         print("Timeseries early warning model loaded successfully.")
     except Exception as e:
         print(f"Error loading timeseries early warning model: {e}")
+
+    # Load crude risk profiler model
+    global risk_model_dict
+    try:
+        risk_model_path = os.path.join(root_dir, "phase1_profiler", "crude_profiler.pkl")
+        if not os.path.exists(risk_model_path):
+            risk_model_path = os.path.join(os.path.dirname(root_dir), "phase1_profiler", "crude_profiler.pkl")
+        import pickle
+        with open(risk_model_path, 'rb') as f:
+            risk_model_dict = pickle.load(f)
+        print("Crude risk profiler model loaded successfully.")
+    except Exception as e:
+        print(f"Error loading crude risk profiler model: {e}")
 
 class CrudeConditions(BaseModel):
     API_Gravity: float = Field(..., ge=20.0, le=45.0, description="API Gravity of incoming crude batch (20.0 to 45.0)")
@@ -93,7 +107,7 @@ def health_check():
 
 @app.post("/optimize")
 def get_optimized_setpoints(conditions: CrudeConditions):
-    global model
+    global model, risk_model_dict
     if model is None:
         try:
             model = load_digital_twin()
@@ -102,6 +116,21 @@ def get_optimized_setpoints(conditions: CrudeConditions):
             
     try:
         result = optimize_setpoints(model, conditions.API_Gravity, conditions.Inlet_BSW, conditions.Inlet_Salt_PTB)
+        
+        # Predict risk class
+        predicted_risk = "Unknown"
+        if risk_model_dict is not None:
+            clf = risk_model_dict['model']
+            le = risk_model_dict['label_encoder']
+            input_df = pd.DataFrame([{
+                'API_Gravity': conditions.API_Gravity,
+                'Inlet_BSW': conditions.Inlet_BSW,
+                'Inlet_Salt_PTB': conditions.Inlet_Salt_PTB
+            }])
+            y_pred = clf.predict(input_df)
+            predicted_risk = le.inverse_transform(y_pred)[0]
+            
+        result["predicted_risk"] = predicted_risk
         return result
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Optimization error: {str(e)}")
