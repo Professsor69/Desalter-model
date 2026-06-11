@@ -184,6 +184,8 @@ with tab2:
     current_dir = os.path.dirname(os.path.abspath(__file__))
     root_dir = os.path.dirname(current_dir)
     csv_path = os.path.join(root_dir, "timeseries_engine", "desalter_timeseries.csv")
+    if not os.path.exists(csv_path):
+        csv_path = os.path.join(os.path.dirname(root_dir), "timeseries_engine", "desalter_timeseries.csv")
 
     if not os.path.exists(csv_path):
         st.error(f"⚠️ **SCADA Timeseries Dataset not found.** Please verify the file is generated at: `{csv_path}`")
@@ -214,7 +216,7 @@ with tab2:
             )
 
         idx = st.session_state.sim_index
-        window = df_sim.iloc[idx - 59:idx + 1].copy()
+        window = df_sim.iloc[idx - 60:idx + 1].copy()
         current_reading = df_sim.iloc[idx]
 
         # Initialize session state variables if they do not exist

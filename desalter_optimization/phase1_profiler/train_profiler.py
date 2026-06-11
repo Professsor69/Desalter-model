@@ -12,6 +12,8 @@ def main():
     script_dir = os.path.dirname(os.path.abspath(__file__))
     # Resolve the path to the Stage 1 crude profile data
     csv_path = os.path.join(os.path.dirname(script_dir), 'crude_oil_risk_prediction', 'crude_profile_data.csv')
+    if not os.path.exists(csv_path):
+        csv_path = os.path.join(os.path.dirname(os.path.dirname(script_dir)), 'crude_oil_risk_prediction', 'crude_profile_data.csv')
     
     if not os.path.exists(csv_path):
         raise FileNotFoundError(f"Could not find crude_profile_data.csv at {csv_path}")

@@ -25,6 +25,8 @@ def main():
     # 1. Evaluate Crude Profiler Classifier
     # ----------------------------------------------------
     classifier_path = os.path.join(root_dir, 'phase1_profiler', 'crude_profiler.pkl')
+    if not os.path.exists(classifier_path):
+        classifier_path = os.path.join(root_dir, 'desalter_optimization', 'phase1_profiler', 'crude_profiler.pkl')
     csv_path = os.path.join(root_dir, 'crude_oil_risk_prediction', 'crude_profile_data.csv')
     
     print("\n[1/2] Evaluating Crude Profiler Classifier...")
@@ -53,7 +55,11 @@ def main():
     # 2. Evaluate Digital Twin Regressor
     # ----------------------------------------------------
     regressor_path = os.path.join(root_dir, 'phase2_optimizer', 'desalter_twin.pkl')
+    if not os.path.exists(regressor_path):
+        regressor_path = os.path.join(root_dir, 'desalter_optimization', 'phase2_optimizer', 'desalter_twin.pkl')
     db_path = os.path.join(root_dir, 'phase2_optimizer', 'historian_data.sqlite')
+    if not os.path.exists(db_path):
+        db_path = os.path.join(root_dir, 'desalter_optimization', 'phase2_optimizer', 'historian_data.sqlite')
     
     print("[2/2] Evaluating Digital Twin Regressor...")
     if not os.path.exists(regressor_path):

@@ -52,8 +52,9 @@ def startup_event():
         
     # Load timeseries early warning model
     try:
-        print("Loading timeseries early warning model during API startup...")
         timeseries_model_path = os.path.join(root_dir, "timeseries_engine", "timeseries_warning_model.pkl")
+        if not os.path.exists(timeseries_model_path):
+            timeseries_model_path = os.path.join(os.path.dirname(root_dir), "timeseries_engine", "timeseries_warning_model.pkl")
         timeseries_model_dict = joblib.load(timeseries_model_path)
         print("Timeseries early warning model loaded successfully.")
     except Exception as e:
@@ -111,8 +112,8 @@ def predict_early_warning(payload: EarlyWarningInput):
     if timeseries_model_dict is None:
         raise HTTPException(status_code=500, detail="Timeseries early warning model is not loaded.")
         
-    if len(payload.readings) < 60:
-        raise HTTPException(status_code=400, detail=f"Need exactly 60 readings. Received: {len(payload.readings)}")
+    if len(payload.readings) < 61:
+        raise HTTPException(status_code=400, detail=f"Need at least 61 readings (60 minutes lag + current). Received: {len(payload.readings)}")
 
     try:
         # Convert list of Pydantic models to a pandas DataFrame
