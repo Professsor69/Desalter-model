@@ -281,7 +281,8 @@ with tab2:
                 "API_Gravity": float(row["API_Gravity"]),
                 "Inlet_Temperature": float(row["Inlet_Temperature"]),
                 "Wash_Water_Rate": float(row["Wash_Water_Rate"]),
-                "Inlet_Salt_PTB": float(row["Inlet_Salt_PTB"])
+                "Inlet_Salt_PTB": float(row["Inlet_Salt_PTB"]),
+                "Emulsion_Layer_Thickness": float(row["Emulsion_Layer_Thickness"])
             })
 
         payload = {"readings": readings}
@@ -343,7 +344,7 @@ with tab2:
 
         # Render Live Sensor Values
         st.markdown("#### Real-time SCADA Sensor Readings")
-        m_col1, m_col2, m_col3, m_col4, m_col5 = st.columns(5)
+        m_col1, m_col2, m_col3, m_col4, m_col5, m_col6 = st.columns(6)
         
         m_col1.metric(
             label="API Gravity",
@@ -363,16 +364,20 @@ with tab2:
             label="Inlet Salt",
             value=f"{current_reading['Inlet_Salt_PTB']:.1f} PTB"
         )
+        m_col5.metric(
+            label="Emulsion Layer",
+            value=f"{current_reading['Emulsion_Layer_Thickness']:.2f} mm"
+        )
         
         if grid_volts == 0.0:
-            m_col5.metric(
+            m_col6.metric(
                 label="Grid Voltage",
                 value=f"{grid_volts:.1f} kV",
                 delta="TRIPPED",
                 delta_color="inverse"
             )
         else:
-            m_col5.metric(
+            m_col6.metric(
                 label="Grid Voltage",
                 value=f"{grid_volts:.1f} kV"
             )
@@ -385,7 +390,7 @@ with tab2:
         plot_df = plot_df.set_index('Time')
         
         # Plot parameters
-        st.line_chart(plot_df[['Inlet_Temperature', 'Grid_Voltage', 'Wash_Water_Rate']])
+        st.line_chart(plot_df[['Inlet_Temperature', 'Emulsion_Layer_Thickness', 'Grid_Voltage']])
 
         # Handle Stream Loop Animation
         if st.session_state.sim_active:

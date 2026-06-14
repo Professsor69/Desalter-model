@@ -16,12 +16,16 @@ df['Temp_roll_mean_15'] = df['Inlet_Temperature'].rolling(window=15).mean()
 df['Temp_roll_mean_60'] = df['Inlet_Temperature'].rolling(window=60).mean()
 df['Water_roll_mean_15'] = df['Wash_Water_Rate'].rolling(window=15).mean()
 df['Water_roll_mean_60'] = df['Wash_Water_Rate'].rolling(window=60).mean()
+df['Emulsion_roll_mean_15'] = df['Emulsion_Layer_Thickness'].rolling(window=15).mean()
+df['Emulsion_roll_mean_60'] = df['Emulsion_Layer_Thickness'].rolling(window=60).mean()
 
 # Slopes (difference between current value and value N steps ago)
 df['Temp_slope_15'] = df['Inlet_Temperature'] - df['Inlet_Temperature'].shift(15)
 df['Temp_slope_60'] = df['Inlet_Temperature'] - df['Inlet_Temperature'].shift(60)
 df['Water_slope_15'] = df['Wash_Water_Rate'] - df['Wash_Water_Rate'].shift(15)
 df['Water_slope_60'] = df['Wash_Water_Rate'] - df['Wash_Water_Rate'].shift(60)
+df['Emulsion_slope_15'] = df['Emulsion_Layer_Thickness'] - df['Emulsion_Layer_Thickness'].shift(15)
+df['Emulsion_slope_60'] = df['Emulsion_Layer_Thickness'] - df['Emulsion_Layer_Thickness'].shift(60)
 
 # Drop rows with NaN values resulting from rolling/shifting
 df_clean = df.dropna().reset_index(drop=True)
@@ -29,11 +33,13 @@ df_clean = df.dropna().reset_index(drop=True)
 # Features and target
 # Note: Grid_Voltage is excluded to prevent data leakage (since it drops during failures)
 feature_cols = [
-    'API_Gravity', 'Inlet_Temperature', 'Wash_Water_Rate', 'Inlet_Salt_PTB',
+    'API_Gravity', 'Inlet_Temperature', 'Wash_Water_Rate', 'Inlet_Salt_PTB', 'Emulsion_Layer_Thickness',
     'Temp_roll_mean_15', 'Temp_roll_mean_60',
     'Temp_slope_15', 'Temp_slope_60',
     'Water_roll_mean_15', 'Water_roll_mean_60',
-    'Water_slope_15', 'Water_slope_60'
+    'Water_slope_15', 'Water_slope_60',
+    'Emulsion_roll_mean_15', 'Emulsion_roll_mean_60',
+    'Emulsion_slope_15', 'Emulsion_slope_60'
 ]
 target_col = 'Trip_Warning_60m'
 

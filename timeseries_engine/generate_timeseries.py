@@ -30,6 +30,7 @@ API_Gravity = generate_mean_reverting_walk(TOTAL_MINUTES, 32.0, 31.0, 0.001, 0.0
 Inlet_Temperature = generate_mean_reverting_walk(TOTAL_MINUTES, 135.0, 135.0, 0.005, 0.15, 115.0, 150.0)
 Wash_Water_Rate = generate_mean_reverting_walk(TOTAL_MINUTES, 5.0, 5.0, 0.005, 0.05, 1.0, 10.0)
 Inlet_Salt_PTB = generate_mean_reverting_walk(TOTAL_MINUTES, 30.0, 30.0, 0.003, 0.15, 10.0, 60.0)
+Emulsion_Layer_Thickness = generate_mean_reverting_walk(TOTAL_MINUTES, 10.0, 10.0, 0.005, 0.1, 5.0, 15.0)
 Grid_Voltage = np.random.normal(15.0, 0.05, TOTAL_MINUTES)  # normal voltage is ~15 kV
 
 # 3. Inject failures
@@ -83,6 +84,9 @@ for T in failure_times:
         # Wash water rate fluctuates wildly
         Wash_Water_Rate[t_idx] += np.random.normal(0, 0.2)
         
+        # Emulsion Layer Thickness grows exponentially towards the shorting point (crosses 25.0mm around T)
+        Emulsion_Layer_Thickness[t_idx] += 16.0 * (fraction ** 2) + np.random.normal(0, 0.1)
+        
     # Grid Voltage decay starts at T - 90 down to T
     decay_start = T - 90
     for i in range(90):
@@ -106,12 +110,14 @@ for T in failure_times:
             API_Gravity[t_idx] = API_Gravity[T-1]
             Wash_Water_Rate[t_idx] = 0.0
             Inlet_Salt_PTB[t_idx] = Inlet_Salt_PTB[T-1]
+            Emulsion_Layer_Thickness[t_idx] = Emulsion_Layer_Thickness[T-1]
 
 # Post-processing clips
 API_Gravity = np.clip(API_Gravity, 20.0, 40.0).round(2)
 Inlet_Temperature = Inlet_Temperature.round(2)
 Wash_Water_Rate = np.clip(Wash_Water_Rate, 0.0, 10.0).round(2)
 Inlet_Salt_PTB = np.clip(Inlet_Salt_PTB, 10.0, 60.0).round(2)
+Emulsion_Layer_Thickness = np.clip(Emulsion_Layer_Thickness, 0.0, 40.0).round(2)
 Grid_Voltage = np.clip(Grid_Voltage, 0.0, 16.0).round(2)
 
 # Create DataFrame
@@ -121,6 +127,7 @@ df = pd.DataFrame({
     'Inlet_Temperature': Inlet_Temperature,
     'Wash_Water_Rate': Wash_Water_Rate,
     'Inlet_Salt_PTB': Inlet_Salt_PTB,
+    'Emulsion_Layer_Thickness': Emulsion_Layer_Thickness,
     'Grid_Voltage': Grid_Voltage,
     'Trip_Warning_60m': Trip_Warning_60m
 })

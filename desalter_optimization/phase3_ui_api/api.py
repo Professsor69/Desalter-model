@@ -94,6 +94,7 @@ class TimeSeriesReading(BaseModel):
     Inlet_Temperature: float = Field(..., description="Inlet Temperature in °C")
     Wash_Water_Rate: float = Field(..., description="Wash Water flow rate in %")
     Inlet_Salt_PTB: float = Field(..., description="Inlet Salt PTB")
+    Emulsion_Layer_Thickness: float = Field(..., description="Emulsion Layer Thickness in mm")
 
 class EarlyWarningInput(BaseModel):
     readings: list[TimeSeriesReading] = Field(..., description="List of last 60 minutes of SCADA readings (from oldest to newest)")
@@ -154,11 +155,15 @@ def predict_early_warning(payload: EarlyWarningInput):
         df['Temp_roll_mean_60'] = df['Inlet_Temperature'].rolling(window=60).mean()
         df['Water_roll_mean_15'] = df['Wash_Water_Rate'].rolling(window=15).mean()
         df['Water_roll_mean_60'] = df['Wash_Water_Rate'].rolling(window=60).mean()
+        df['Emulsion_roll_mean_15'] = df['Emulsion_Layer_Thickness'].rolling(window=15).mean()
+        df['Emulsion_roll_mean_60'] = df['Emulsion_Layer_Thickness'].rolling(window=60).mean()
 
         df['Temp_slope_15'] = df['Inlet_Temperature'] - df['Inlet_Temperature'].shift(15)
         df['Temp_slope_60'] = df['Inlet_Temperature'] - df['Inlet_Temperature'].shift(60)
         df['Water_slope_15'] = df['Wash_Water_Rate'] - df['Wash_Water_Rate'].shift(15)
         df['Water_slope_60'] = df['Wash_Water_Rate'] - df['Wash_Water_Rate'].shift(60)
+        df['Emulsion_slope_15'] = df['Emulsion_Layer_Thickness'] - df['Emulsion_Layer_Thickness'].shift(15)
+        df['Emulsion_slope_60'] = df['Emulsion_Layer_Thickness'] - df['Emulsion_Layer_Thickness'].shift(60)
 
         # Get latest row features and format for prediction
         features_list = timeseries_model_dict['features']
