@@ -89,10 +89,12 @@ Recommends optimal setpoints for **Process Temperature (°C)** and **Wash Water 
 * **Heuristic Engine:** Utilizes SciPy's Powell algorithm initialized via global Grid Search over the operating bounds (Temperature: 110-150°C, Wash Water: 2-8%) against an XGBoost Digital Twin model.
 * **Data Source:** Process historian records stored in SQLite (`historian_data.sqlite`).
 * **Digital Twin Performance:** $R^2$ Score of **96.10%** (RMSE: **2.2675 mm**).
+* **Operator Override & Shadow Logging:** Features an interactive **2D Contour Heatmap** allowing operators to simulate manual overrides. If a manual setpoint outperforms the AI, the anomaly is securely captured into a persistent SQLite database (`optimizer_anomalies.sqlite`) to continuously learn from human expertise.
 
 ### Part 3: Time-Series Predictive Maintenance Engine (`timeseries_engine/`)
 Monitors high-frequency SCADA streams to predict electrostatic grid voltage trips (failures) **60 minutes before they happen**, allowing operators to intervene proactively.
-* **Engineered Features:** 15-minute and 60-minute rolling means and slopes (gradients) of temperature and wash water.
+* **Core Physical Driver:** Actively monitors the **Emulsion Layer Thickness** as the primary failure precursor. The model tracks emulsion growth and triggers the 60-minute alarm to safely stop the desalter *before* the emulsion gets thick enough to short out the grid.
+* **Engineered Features:** 15-minute and 60-minute rolling means and slopes (gradients) of temperature, wash water, and emulsion layer thickness.
 * **Model:** Weighted `XGBClassifier` trained on a 30-day simulated continuous run (43,200 rows) containing 10 trip failure events.
 * **Early Warning Resolution:** Formatted with a 61-row sliding history window to compute valid rolling differences and slopes, avoiding `NaN` values and ensuring reliable warning alarms.
 
