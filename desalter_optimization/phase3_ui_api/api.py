@@ -2,6 +2,8 @@ import os
 import sys
 import pandas as pd
 import joblib
+import sqlite3
+from datetime import datetime
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
@@ -88,6 +90,24 @@ class CrudeConditions(BaseModel):
             }
         }
 
+class PredictConditions(BaseModel):
+    API_Gravity: float = Field(..., ge=20.0, le=45.0, description="API Gravity of incoming crude batch (20.0 to 45.0)")
+    Inlet_BSW: float = Field(..., ge=0.1, le=2.5, description="Inlet BSW % of incoming crude batch (0.1 to 2.5)")
+    Inlet_Salt_PTB: float = Field(..., ge=10.0, le=60.0, description="Inlet Salt PTB of incoming crude batch (10.0 to 60.0)")
+    Temperature_C: float = Field(..., ge=110.0, le=150.0, description="Simulated Operator Temperature setpoint (110.0 to 150.0)")
+    Wash_Water_Percent: float = Field(..., ge=2.0, le=8.0, description="Simulated Operator Wash Water percentage setpoint (2.0 to 8.0)")
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "API_Gravity": 25.0,
+                "Inlet_BSW": 1.8,
+                "Inlet_Salt_PTB": 30.0,
+                "Temperature_C": 130.0,
+                "Wash_Water_Percent": 5.0
+            }
+        }
+
 # schemas for time-series early warning monitor
 class TimeSeriesReading(BaseModel):
     API_Gravity: float = Field(..., description="API Gravity")
@@ -135,6 +155,97 @@ def get_optimized_setpoints(conditions: CrudeConditions):
         return result
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Optimization error: {str(e)}")
+
+def log_anomaly_to_db(api_gravity, bsw, salt, ai_temp, ai_water, ai_thickness, op_temp, op_water, op_thickness):
+    db_path = os.path.join(current_dir, "optimizer_anomalies.sqlite")
+    try:
+        conn = sqlite3.connect(db_path)
+        cursor = conn.cursor()
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS anomalies (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                timestamp TEXT NOT NULL,
+                api_gravity REAL NOT NULL,
+                inlet_bsw REAL NOT NULL,
+                inlet_salt_ptb REAL NOT NULL,
+                ai_temp REAL NOT NULL,
+                ai_water REAL NOT NULL,
+                ai_thickness REAL NOT NULL,
+                operator_temp REAL NOT NULL,
+                operator_water REAL NOT NULL,
+                operator_thickness REAL NOT NULL
+            )
+        """)
+        cursor.execute("""
+            INSERT INTO anomalies (
+                timestamp, api_gravity, inlet_bsw, inlet_salt_ptb, 
+                ai_temp, ai_water, ai_thickness, 
+                operator_temp, operator_water, operator_thickness
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (
+            datetime.now().isoformat(),
+            api_gravity,
+            bsw,
+            salt,
+            ai_temp,
+            ai_water,
+            ai_thickness,
+            op_temp,
+            op_water,
+            op_thickness
+        ))
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        print(f"Error logging anomaly to SQLite: {e}", file=sys.stderr)
+
+@app.post("/predict")
+def predict_emulsion_thickness(conditions: PredictConditions):
+    global model
+    if model is None:
+        try:
+            model = load_digital_twin()
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Model not loaded: {str(e)}")
+            
+    try:
+        # Evaluate operator manual setpoints
+        df_single = pd.DataFrame([{
+            'API_Gravity': conditions.API_Gravity,
+            'Inlet_BSW': conditions.Inlet_BSW,
+            'Inlet_Salt_PTB': conditions.Inlet_Salt_PTB,
+            'Temperature_C': conditions.Temperature_C,
+            'Wash_Water_Percent': conditions.Wash_Water_Percent
+        }])
+        op_thickness = float(model.predict(df_single)[0])
+        
+        # Compare with AI Optimized recommendations
+        ai_res = optimize_setpoints(model, conditions.API_Gravity, conditions.Inlet_BSW, conditions.Inlet_Salt_PTB)
+        ai_opt = ai_res.get("optimal_setpoints", {})
+        ai_temp = ai_opt.get("Temperature_C", 0.0)
+        ai_water = ai_opt.get("Wash_Water_Percent", 0.0)
+        ai_thickness = ai_res.get("predicted_emulsion_thickness_mm", 0.0)
+        
+        # If Operator outperforms AI, log it silently (Shadow Logging)
+        if op_thickness < ai_thickness:
+            log_anomaly_to_db(
+                conditions.API_Gravity,
+                conditions.Inlet_BSW,
+                conditions.Inlet_Salt_PTB,
+                ai_temp,
+                ai_water,
+                ai_thickness,
+                conditions.Temperature_C,
+                conditions.Wash_Water_Percent,
+                op_thickness
+            )
+            
+        return {
+            "status": "success",
+            "predicted_emulsion_thickness_mm": round(op_thickness, 4)
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Prediction error: {str(e)}")
 
 @app.post("/predict-early-warning")
 def predict_early_warning(payload: EarlyWarningInput):

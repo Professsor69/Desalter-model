@@ -2,6 +2,53 @@ import os
 import streamlit as st
 import requests
 import pandas as pd
+import altair as alt
+import numpy as np
+import plotly.graph_objects as go
+import sys
+
+# Establish path to the repository root so we can import from phase2_optimizer
+current_dir = os.path.dirname(os.path.abspath(__file__))
+root_dir = os.path.dirname(current_dir)
+if root_dir not in sys.path:
+    sys.path.insert(0, root_dir)
+
+try:
+    from phase2_optimizer.prescriptive_optimizer import load_digital_twin
+except ImportError:
+    sys.path.insert(0, os.path.abspath(os.path.join(current_dir, '..')))
+    from phase2_optimizer.prescriptive_optimizer import load_digital_twin
+
+@st.cache_resource
+def get_local_digital_twin():
+    return load_digital_twin()
+
+def render_custom_metric_card(label, value, delta=None, warning=False, help=""):
+    border_color = "#ef4444" if warning else "#334155"
+    bg_color = "#451a03" if warning else "var(--secondary-background-color)" # dark red if warning, else native secondary background
+    text_color = "#ef4444" if warning else "#38bdf8"
+    
+    delta_html = ""
+    if delta:
+        d_color = "#ef4444" if "penalty" in delta or "+" in delta else "#10b981"
+        if warning:
+            d_color = "#ef4444"
+        delta_html = f"<div style='font-size: 0.95rem; color: {d_color}; margin-top: 4px; font-weight: 600;'>{delta}</div>"
+        
+    st.markdown(f"""
+        <div style="background-color: {bg_color}; border: 2px solid {border_color}; border-radius: 8px; padding: 16px; min-height: 100px;">
+            <div style="font-size: 0.9rem; color: #94a3b8; font-weight: 500;">{label}</div>
+            <div style="font-size: 1.8rem; color: {text_color}; font-weight: 800; margin-top: 4px;">{value}</div>
+            {delta_html}
+        </div>
+    """, unsafe_allow_html=True)
+
+def reset_optimizer_state():
+    if st.session_state.get("optimizer_run_done", False):
+        st.session_state.optimizer_run_done = False
+        st.session_state.ai_results = {}
+        st.session_state.comparison_run_done = False
+        st.session_state.crude_modified = True
 
 # Page Configuration
 st.set_page_config(
@@ -10,12 +57,16 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
+# Sidebar Configuration
+st.sidebar.image("https://img.icons8.com/color/96/refinery.png", width=90)
+st.sidebar.title("Configuration")
+
 # Custom CSS for rich dashboard styling
 st.markdown("""
 <style>
     .stApp {
-        background-color: #0f172a;
-        color: #f8fafc;
+        background-color: var(--background-color);
+        color: var(--text-color);
     }
     div.stButton > button:first-child {
         background-color: #0284c7;
@@ -50,9 +101,7 @@ st.markdown("---")
 API_URL = os.getenv("API_URL", "http://localhost:8000/optimize")
 API_URL_WARNING = API_URL.replace("/optimize", "/predict-early-warning")
 
-# Sidebar Configuration
-st.sidebar.image("https://img.icons8.com/color/96/refinery.png", width=90)
-st.sidebar.title("Configuration")
+
 
 # Tabs Layout
 tab1, tab2 = st.tabs(["Static Optimizer", "Live Early Warning Monitor"])
@@ -62,7 +111,8 @@ with tab1:
     crude_blend = st.sidebar.selectbox(
         "Crude Blend", 
         ['Basrah Heavy', 'Arab Light', 'Ural', 'Bonny Light'],
-        help="Select the raw crude blend type."
+        help="Select the raw crude blend type.",
+        on_change=reset_optimizer_state
     )
     api_gravity = st.sidebar.slider(
         "API Gravity (°API)", 
@@ -70,7 +120,8 @@ with tab1:
         max_value=45.0, 
         value=32.0, 
         step=0.1,
-        help="Measures how heavy or light the crude is. Heavier crudes have lower API values."
+        help="Measures how heavy or light the crude is. Heavier crudes have lower API values.",
+        on_change=reset_optimizer_state
     )
 
     inlet_bsw = st.sidebar.slider(
@@ -79,7 +130,8 @@ with tab1:
         max_value=2.5, 
         value=1.0, 
         step=0.01,
-        help="Basic Sediment and Water percentage in the incoming crude."
+        help="Basic Sediment and Water percentage in the incoming crude.",
+        on_change=reset_optimizer_state
     )
 
     inlet_salt_ptb = st.sidebar.slider(
@@ -88,7 +140,8 @@ with tab1:
         max_value=60.0,
         value=30.0,
         step=0.1,
-        help="Inlet salt content in Pounds per Thousand Barrels (PTB)."
+        help="Inlet salt content in Pounds per Thousand Barrels (PTB).",
+        on_change=reset_optimizer_state
     )
 
     st.sidebar.markdown("---")
@@ -113,6 +166,14 @@ with tab1:
     with col2:
         st.subheader("🎯 Optimization Results")
         
+        # Ensure session state variables for tab1 optimizer exist
+        if "optimizer_run_done" not in st.session_state:
+            st.session_state.optimizer_run_done = False
+            st.session_state.ai_results = {}
+            st.session_state.comparison_run_done = False
+            st.session_state.op_thickness = 0.0
+            st.session_state.crude_modified = False
+
         if run_btn:
             with st.spinner("Sending request to Digital Twin API..."):
                 try:
@@ -128,54 +189,16 @@ with tab1:
                     result = response.json()
                     
                     if result.get("status") == "success":
-                        # Render Emulsion Risk Prediction Banner
-                        predicted_risk = result.get("predicted_risk", "Unknown")
-                        if predicted_risk == "High":
-                            st.error("🚨 **HIGH RISK**: This crude batch is predicted to be high risk for emulsion.")
-                        elif predicted_risk == "Medium":
-                            st.warning("⚠️ **MEDIUM RISK**: Moderate processing difficulty expected.")
-                        elif predicted_risk == "Low":
-                            st.success("✅ **LOW RISK**: This crude batch is predicted to process easily.")
-                        else:
-                            st.info(f"**Predicted Emulsion Risk Class:** {predicted_risk}")
-
+                        st.session_state.optimizer_run_done = True
+                        st.session_state.ai_results = result
+                        # Reset comparison when a new AI optimization runs
+                        st.session_state.comparison_run_done = False
+                        st.session_state.crude_modified = False
+                        
+                        # Set default values for operator overrides to match the newly generated recommendations
                         optimal = result.get("optimal_setpoints", {})
-                        pred_thickness = result.get("predicted_emulsion_thickness_mm", 0.0)
-                        metadata = result.get("optimization_metadata", {})
-                        
-                        st.markdown("#### Recommended Setpoint Values")
-                        
-                        # Columns to hold st.metric cards
-                        m_col1, m_col2, m_col3 = st.columns(3)
-                        
-                        with m_col1:
-                            st.metric(
-                                label="Recommended Temperature",
-                                value=f"{optimal.get('Temperature_C', 0.0):.1f} °C",
-                                help="Optimal process heater outlet temperature setpoint."
-                            )
-                        with m_col2:
-                            st.metric(
-                                label="Recommended Wash Water",
-                                value=f"{optimal.get('Wash_Water_Percent', 0.0):.1f} %",
-                                help="Optimal wash water flow percentage setpoint."
-                            )
-                        with m_col3:
-                            st.metric(
-                                label="Predicted Emulsion Layer",
-                                value=f"{pred_thickness:.2f} mm",
-                                help="Expected thickness of the emulsion layer using optimal setpoints."
-                            )
-                        
-                        # Collapsible metadata logs
-                        with st.expander("🛠️ Optimization Execution Logs"):
-                            st.json({
-                                "API Response Status": result.get("status"),
-                                "Optimization Method": metadata.get("method_used"),
-                                "Raw Grid Min Emulsion": f"{metadata.get('grid_search_raw_min'):.4f} mm",
-                                "Powell Success Status": metadata.get("powell_success"),
-                                "Powell Iterations": metadata.get("powell_iterations")
-                            })
+                        st.session_state.op_temp = float(optimal.get('Temperature_C', 130.0))
+                        st.session_state.op_water = float(optimal.get('Wash_Water_Percent', 5.0))
                     else:
                         st.error(f"API Error: {result.get('message', 'Optimization failed')}")
                         
@@ -183,8 +206,271 @@ with tab1:
                     st.error(f"❌ Connection Error: Could not connect to the API server at `{API_URL}`. Verify the FastAPI backend is running.")
                 except Exception as e:
                     st.error(f"❌ Error occurred during optimization: {e}")
+
+        if st.session_state.optimizer_run_done:
+            result = st.session_state.ai_results
+            
+            # Render Emulsion Risk Prediction Banner
+            predicted_risk = result.get("predicted_risk", "Unknown")
+            if predicted_risk == "High":
+                st.error("🚨 **HIGH RISK**: This crude batch is predicted to be high risk for emulsion.")
+            elif predicted_risk == "Medium":
+                st.warning("⚠️ **MEDIUM RISK**: Moderate processing difficulty expected.")
+            elif predicted_risk == "Low":
+                st.success("✅ **LOW RISK**: This crude batch is predicted to process easily.")
+            else:
+                st.info(f"**Predicted Emulsion Risk Class:** {predicted_risk}")
+
+            optimal = result.get("optimal_setpoints", {})
+            pred_thickness = result.get("predicted_emulsion_thickness_mm", 0.0)
+            metadata = result.get("optimization_metadata", {})
+            
+            st.markdown("#### Recommended Setpoint Values")
+            
+            # Columns to hold st.metric cards
+            m_col1, m_col2, m_col3 = st.columns(3)
+            
+            with m_col1:
+                st.metric(
+                    label="Recommended Temperature",
+                    value=f"{optimal.get('Temperature_C', 0.0):.1f} °C",
+                    help="Optimal process heater outlet temperature setpoint."
+                )
+            with m_col2:
+                st.metric(
+                    label="Recommended Wash Water",
+                    value=f"{optimal.get('Wash_Water_Percent', 0.0):.1f} %",
+                    help="Optimal wash water flow percentage setpoint."
+                )
+            with m_col3:
+                st.metric(
+                    label="Predicted Emulsion Layer",
+                    value=f"{pred_thickness:.2f} mm",
+                    help="Expected thickness of the emulsion layer using optimal setpoints."
+                )
+            
+            # Collapsible metadata logs
+            with st.expander("🛠️ Optimization Execution Logs"):
+                st.json({
+                    "API Response Status": result.get("status"),
+                    "Optimization Method": metadata.get("method_used"),
+                    "Raw Grid Min Emulsion": f"{metadata.get('grid_search_raw_min'):.4f} mm",
+                    "Powell Success Status": metadata.get("powell_success"),
+                    "Powell Iterations": metadata.get("powell_iterations")
+                })
+
+            # --- Operator Override vs. AI Optimizer Module ---
+            st.markdown("---")
+            st.markdown("### 🎛️ Operator Override vs. AI Optimizer")
+            
+            # 1. Operator Input Panel Card
+            with st.container(border=True):
+                st.markdown("#### 🛠️ Simulate Manual Setpoints")
+                
+                # Initialize slider session state keys if they are not already set
+                if "op_temp" not in st.session_state:
+                    st.session_state.op_temp = float(optimal.get('Temperature_C', 130.0))
+                if "op_water" not in st.session_state:
+                    st.session_state.op_water = float(optimal.get('Wash_Water_Percent', 5.0))
+                
+                col_inputs1, col_inputs2 = st.columns(2)
+                with col_inputs1:
+                    op_temp_val = st.slider(
+                        "Operator Temperature (°C)",
+                        min_value=110.0,
+                        max_value=150.0,
+                        key="op_temp",
+                        step=0.5,
+                        help="Simulated operator manual temperature setpoint."
+                    )
+                with col_inputs2:
+                    op_water_val = st.slider(
+                        "Operator Wash Water (%)",
+                        min_value=2.0,
+                        max_value=8.0,
+                        key="op_water",
+                        step=0.1,
+                        help="Simulated operator manual wash water percentage setpoint."
+                    )
+
+            # 2. Compute Operator Prediction and run shadow logging in the background
+            try:
+                payload_predict = {
+                    "API_Gravity": api_gravity,
+                    "Inlet_BSW": inlet_bsw,
+                    "Inlet_Salt_PTB": inlet_salt_ptb,
+                    "Temperature_C": op_temp_val,
+                    "Wash_Water_Percent": op_water_val
+                }
+                PREDICT_URL = API_URL.replace("/optimize", "/predict")
+                resp_predict = requests.post(PREDICT_URL, json=payload_predict, timeout=10)
+                resp_predict.raise_for_status()
+                result_predict = resp_predict.json()
+                
+                if result_predict.get("status") == "success":
+                    op_thickness = result_predict.get("predicted_emulsion_thickness_mm", 0.0)
+                else:
+                    twin_model = get_local_digital_twin()
+                    df_single = pd.DataFrame([{
+                        'API_Gravity': api_gravity,
+                        'Inlet_BSW': inlet_bsw,
+                        'Inlet_Salt_PTB': inlet_salt_ptb,
+                        'Temperature_C': op_temp_val,
+                        'Wash_Water_Percent': op_water_val
+                    }])
+                    op_thickness = float(twin_model.predict(df_single)[0])
+            except Exception as e:
+                twin_model = get_local_digital_twin()
+                df_single = pd.DataFrame([{
+                    'API_Gravity': api_gravity,
+                    'Inlet_BSW': inlet_bsw,
+                    'Inlet_Salt_PTB': inlet_salt_ptb,
+                    'Temperature_C': op_temp_val,
+                    'Wash_Water_Percent': op_water_val
+                }])
+                op_thickness = float(twin_model.predict(df_single)[0])
+
+            # 3. Metric Delta Cards (Top of Module)
+            st.markdown("#### 📊 Real-time Performance Comparison")
+            
+            ai_thickness = pred_thickness
+            delta_thickness = op_thickness - ai_thickness
+            
+            c_m1, c_m2 = st.columns(2)
+            with c_m1:
+                render_custom_metric_card(
+                    label="AI Optimized Emulsion Thickness",
+                    value=f"{ai_thickness:.2f} mm",
+                    help="Predicted thickness of the emulsion layer using optimal AI setpoints."
+                )
+            with c_m2:
+                warning_state = op_thickness > 45.0
+                if delta_thickness > 0:
+                    delta_str = f"+{delta_thickness:.2f} mm penalty"
+                else:
+                    delta_str = f"{delta_thickness:.2f} mm benefit"
+                    
+                render_custom_metric_card(
+                    label="Operator's Predicted Emulsion Thickness",
+                    value=f"{op_thickness:.2f} mm",
+                    delta=delta_str,
+                    warning=warning_state,
+                    help="Predicted thickness of the emulsion layer using operator's simulated setpoints."
+                )
+                
+            # 4. Generate 2D Contour Heatmap Grid Data
+            temps_lin = np.linspace(110.0, 150.0, 50)
+            wws_lin = np.linspace(2.0, 8.0, 50)
+            temp_grid, ww_grid = np.meshgrid(temps_lin, wws_lin)
+            temp_flat = temp_grid.flatten()
+            ww_flat = ww_grid.flatten()
+
+            grid_df = pd.DataFrame({
+                'API_Gravity': [api_gravity] * len(temp_flat),
+                'Inlet_BSW': [inlet_bsw] * len(temp_flat),
+                'Inlet_Salt_PTB': [inlet_salt_ptb] * len(temp_flat),
+                'Temperature_C': temp_flat,
+                'Wash_Water_Percent': ww_flat
+            })
+
+            twin_model = get_local_digital_twin()
+            z_flat = twin_model.predict(grid_df)
+            z_grid = z_flat.reshape(temp_grid.shape)
+
+            # 5. Render Plotly Contour Map
+            st.markdown("##### 🗺️ Topographical Emulsion Performance Map")
+            
+            fig = go.Figure()
+            
+            # Contour layer
+            fig.add_trace(go.Contour(
+                x=temps_lin,
+                y=wws_lin,
+                z=z_grid,
+                colorscale='RdYlBu_r',  # Blue is low (valley/safe), Red is high (peak/dangerous)
+                reversescale=False,
+                colorbar=dict(
+                    title=dict(
+                        text='Emulsion (mm)',
+                        side='right',
+                        font=dict(color='#94a3b8')
+                    ),
+                    tickfont=dict(color='#94a3b8')
+                ),
+                contours=dict(
+                    coloring='heatmap',
+                    showlabels=True,
+                    labelfont=dict(size=10, color='black')
+                ),
+                hoverinfo='x+y+z'
+            ))
+            
+            # AI static marker (green star)
+            ai_temp = optimal.get('Temperature_C', 130.0)
+            ai_water = optimal.get('Wash_Water_Percent', 5.0)
+            fig.add_trace(go.Scatter(
+                x=[ai_temp],
+                y=[ai_water],
+                mode='markers',
+                marker=dict(
+                    symbol='star',
+                    size=16,
+                    color='#10b981',
+                    line=dict(color='#ffffff', width=2)
+                ),
+                name='AI Optimized Setpoint',
+                showlegend=True
+            ))
+            
+            # Operator dynamic marker (white circle with crosshair)
+            fig.add_trace(go.Scatter(
+                x=[op_temp_val],
+                y=[op_water_val],
+                mode='markers',
+                marker=dict(
+                    symbol='circle-cross-open',
+                    size=14,
+                    color='#ffffff',
+                    line=dict(width=3)
+                ),
+                name='Operator Setpoint Override',
+                showlegend=True
+            ))
+            
+            fig.update_layout(
+                plot_bgcolor='#0f172a',
+                paper_bgcolor='#0f172a',
+                margin=dict(l=40, r=40, t=40, b=40),
+                font=dict(color='#94a3b8'),
+                xaxis=dict(
+                    title='Temperature (°C)',
+                    gridcolor='#1e293b',
+                    zeroline=False,
+                    range=[110, 150]
+                ),
+                yaxis=dict(
+                    title='Wash Water (%)',
+                    gridcolor='#1e293b',
+                    zeroline=False,
+                    range=[2, 8]
+                ),
+                legend=dict(
+                    orientation='h',
+                    yanchor='bottom',
+                    y=1.02,
+                    xanchor='right',
+                    x=1,
+                    font=dict(color='#f8fafc')
+                )
+            )
+            
+            st.plotly_chart(fig, use_container_width=True)
+
         else:
-            st.info("👈 Set the crude parameters in the sidebar and click **Run AI Optimizer** to execute prescriptive control calculations.")
+            if st.session_state.get("crude_modified", False):
+                st.warning("Incoming crude profile modified. Please click 'Run AI Optimizer' to generate new baseline setpoints.")
+            else:
+                st.info("👈 Set the crude parameters in the sidebar and click **Run AI Optimizer** to execute prescriptive control calculations.")
 
 with tab2:
     st.subheader("📡 Live SCADA Stream & Early Warning Monitor")
