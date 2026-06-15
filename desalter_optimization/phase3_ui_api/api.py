@@ -157,8 +157,12 @@ def get_optimized_setpoints(conditions: CrudeConditions):
         raise HTTPException(status_code=500, detail=f"Optimization error: {str(e)}")
 
 def log_anomaly_to_db(api_gravity, bsw, salt, ai_temp, ai_water, ai_thickness, op_temp, op_water, op_thickness):
-    db_path = os.path.join(current_dir, "optimizer_anomalies.sqlite")
+    db_path = os.getenv("DATABASE_PATH", os.path.join(current_dir, "optimizer_anomalies.sqlite"))
     try:
+        # Ensure parent directory of database exists if customized
+        db_dir = os.path.dirname(db_path)
+        if db_dir:
+            os.makedirs(db_dir, exist_ok=True)
         conn = sqlite3.connect(db_path)
         cursor = conn.cursor()
         cursor.execute("""

@@ -5,6 +5,10 @@ services:
       dockerfile: desalter_optimization/Dockerfile.api
     ports:
       - "8000:8000"
+    environment:
+      - DATABASE_PATH=/app/data/optimizer_anomalies.sqlite
+    volumes:
+      - db-data:/app/data
     restart: always
     container_name: desalter-api
 
@@ -20,3 +24,7 @@ services:
       - api
     restart: always
     container_name: desalter-ui
+
+volumes:
+  db-data:
+
