@@ -7,3 +7,7 @@ __pycache__/
 .vscode/
 .idea/
 .DS_Store
+TRASH_phase2_optimizer/
+*anomalies.sqlite
+*.sqlite3
+*.db
