@@ -504,11 +504,12 @@ with tab2:
             if st.button("⏸️ Pause Live Stream", use_container_width=True):
                 st.session_state.sim_active = False
         with c3:
-            st.session_state.sim_index = st.slider(
+            st.session_state.sim_index = st.number_input(
                 "Historical Simulation Position (Minutes)", 
                 min_value=60, 
                 max_value=len(df_sim) - 1, 
-                value=st.session_state.sim_index
+                value=st.session_state.sim_index,
+                step=1
             )
 
         idx = st.session_state.sim_index
